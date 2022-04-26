@@ -19,6 +19,10 @@ type addWorkspaceMsg struct {
 	Workspace models.Workspace
 }
 
-type deleteWorkspaceMsg struct {
+type removedResourceMsg struct {
+	index int
+}
+
+type removeResourceMsg struct {
 	index int
 }

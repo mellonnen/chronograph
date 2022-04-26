@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -26,67 +27,117 @@ func itemsFromListable[L models.Listable](listable []L) []list.Item {
 	return l
 }
 
-type listKeyMap struct {
-	create     key.Binding
-	choose     key.Binding
-	remove     key.Binding
-	toggleHelp key.Binding
-}
-
 type listModel struct {
-	list list.Model
-	Keys *listKeyMap
+	list         list.Model
+	keys         *listKeyMap
+	delegateKeys *delegateKeyMap
 
 	itemType Resource
 }
 
-func newListKeyMap(resourceType Resource) *listKeyMap {
-	return &listKeyMap{
-		create:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", fmt.Sprintf("add %s", resourceType))),
-		choose:     key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", fmt.Sprintf("choose %s", resourceType))),
-		remove:     key.NewBinding(key.WithKeys("r"), key.WithHelp("a", fmt.Sprintf("remove %s", resourceType))),
-		toggleHelp: key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "toggle help")),
-	}
-}
-
 func newList[L models.Listable](listables []L, resourceType Resource) listModel {
+	delegateKeys := newDelegateKeyMap(resourceType)
 	m := listModel{
-		list:     list.New(itemsFromListable(listables), list.NewDefaultDelegate(), 0, 0),
-		Keys:     newListKeyMap(resourceType),
-		itemType: resourceType,
+		list:         list.New(itemsFromListable(listables), newDelegate(delegateKeys), 0, 0),
+		keys:         newListKeyMap(resourceType),
+		delegateKeys: delegateKeys,
+		itemType:     resourceType,
 	}
 	m.list.AdditionalFullHelpKeys = func() []key.Binding {
 		return []key.Binding{
-			m.Keys.create,
-			m.Keys.choose,
-			m.Keys.remove,
-			m.Keys.toggleHelp,
+			m.keys.create,
+			m.keys.toggleHelp,
 		}
 	}
 	m.list.Title = strings.Title(fmt.Sprintf("%ss", resourceType))
 	return m
 }
 
-func (l listModel) update(msg tea.Msg) tea.Cmd {
-	newList, cmd := l.list.Update(msg)
-	l.list = newList
-	return cmd
+func newDelegate(keys *delegateKeyMap) list.DefaultDelegate {
+	d := list.NewDefaultDelegate()
+
+	d.UpdateFunc = func(msg tea.Msg, m *list.Model) tea.Cmd {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch {
+			// signal that the resource should be removed.
+			case key.Matches(msg, keys.remove):
+				return removeResourceCmd(m.Index())
+			}
+
+		case removeResourceMsg:
+			m.RemoveItem(msg.index)
+			if len(m.Items()) == 0 {
+				keys.remove.SetEnabled(false)
+			}
+		}
+		return nil
+	}
+
+	help := []key.Binding{keys.choose, keys.remove}
+	d.ShortHelpFunc = func() []key.Binding {
+		return help
+	}
+	d.FullHelpFunc = func() [][]key.Binding {
+		return [][]key.Binding{help}
+	}
+	return d
 }
 
-func (l listModel) index() int {
-	return l.list.Index()
+type listKeyMap struct {
+	create     key.Binding
+	toggleHelp key.Binding
 }
 
-func (l listModel) removeItem(index int) {
-	l.list.RemoveItem(index)
+func newListKeyMap(resourceType Resource) *listKeyMap {
+	return &listKeyMap{
+		create:     key.NewBinding(key.WithKeys("a"), key.WithHelp("a", fmt.Sprintf("add %s", resourceType))),
+		toggleHelp: key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "toggle help")),
+	}
 }
 
-func (l listModel) addItem(listableItem models.Listable) tea.Cmd {
-	return l.list.InsertItem(-1, item{listableItem})
+type delegateKeyMap struct {
+	choose key.Binding
+	remove key.Binding
 }
 
-func (l listModel) filterState() list.FilterState {
-	return l.list.FilterState()
+func newDelegateKeyMap(resourceType Resource) *delegateKeyMap {
+	return &delegateKeyMap{
+		choose: key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", fmt.Sprintf("choose %s", resourceType))),
+		remove: key.NewBinding(key.WithKeys("x", "backspace"), key.WithHelp("x", fmt.Sprintf("remove %s", resourceType))),
+	}
+}
+
+func (m listModel) update(msg tea.Msg) (listModel, tea.Cmd) {
+	cmds := make([]tea.Cmd, 0)
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		if m.list.FilterState() == list.Filtering {
+			break
+		}
+		switch {
+		case key.Matches(msg, m.keys.create):
+			m.delegateKeys.remove.SetEnabled(true)
+			workspace := models.Workspace{
+				Name:        "Misc",
+				Description: sql.NullString{String: "General workspace", Valid: true},
+			}
+
+			cmds = append(cmds, addWorkspaceCmd(workspace))
+
+		case key.Matches(msg, m.keys.toggleHelp):
+			m.list.SetShowHelp(!m.list.ShowHelp())
+		}
+
+	case addWorkspaceMsg:
+		m.delegateKeys.remove.SetEnabled(true)
+		cmds = append(cmds, m.list.InsertItem(-1, item{msg.Workspace}))
+	}
+
+	newList, cmd := m.list.Update(msg)
+	m.list = newList
+	cmds = append(cmds, cmd)
+	return m, tea.Batch(cmds...)
 }
 
 func (l listModel) view() string {

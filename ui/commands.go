@@ -28,23 +28,30 @@ func listWorkspacesCmd(db *gorm.DB) tea.Cmd {
 		return listWorkspacesMsg{Workspaces: workspaces}
 	}
 }
-
-func addWorkspaceCmd(db *gorm.DB, workspace models.Workspace) tea.Cmd {
+func addWorkspaceCmd(workspace models.Workspace) tea.Cmd {
 	return func() tea.Msg {
-		res := db.Create(&workspace)
-		if res.RowsAffected != 1 {
-			return errorMsg(errors.New("create ineffective"))
-		}
 		return addWorkspaceMsg{Workspace: workspace}
 	}
 }
 
-func deleteWorkspaceCmd(db *gorm.DB, workspace models.Workspace, index int) tea.Cmd {
+func removeResourceCmd(index int) tea.Cmd {
+	return func() tea.Msg {
+		return removeResourceMsg{index: index}
+	}
+}
+
+func removeWorkspaceFromDBCmd(db *gorm.DB, workspace models.Workspace, index int) tea.Cmd {
 	return func() tea.Msg {
 		res := db.Unscoped().Delete(&workspace)
 		if res.RowsAffected != 1 {
 			return errorMsg(errors.New("delete ineffective"))
 		}
-		return deleteWorkspaceMsg{index: index}
+		return removedResourceMsg{index: index}
+	}
+}
+
+func errorCmd(err error) tea.Cmd {
+	return func() tea.Msg {
+		return errorMsg(err)
 	}
 }
