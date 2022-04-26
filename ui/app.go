@@ -12,25 +12,25 @@ import (
 	"gorm.io/gorm"
 )
 
-type uiState int
+type state int
 
 const (
-	root uiState = iota
-	inWorkspace
-	inRepo
-	inTask
+	showWorkspaces state = iota
+	showRepos
+	showTasks
 
-	waiting
+	showTaskInfo
+
+	showWaiting
 	showError
 )
 
 type model struct {
-	state uiState
+	state state
 
 	spinner spinner.Model
+	list    listModel
 
-	list             list.Model
-	listKeys         listKeyMap
 	workspaces       []models.Workspace
 	currentWorkspace *models.Workspace
 	currentRepo      *models.Repo
@@ -52,7 +52,7 @@ func New(dbPath string) *tea.Program {
 }
 
 func (m model) Init() tea.Cmd {
-	m.state = waiting
+	m.state = showWaiting
 	m.waitingText = "initializing the database..."
 	return tea.Batch(m.spinner.Tick, initSqliteCmd(m.dbPath))
 }
@@ -60,50 +60,46 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if m.list.FilterState() == list.Filtering {
+		if m.list.filterState() == list.Filtering {
 			return m, nil
 		}
 		switch {
 		case msg.String() == "q", msg.String() == "ctrl-c":
 			return m, tea.Quit
-		case key.Matches(msg, m.listKeys.create):
+
+		case key.Matches(msg, m.list.Keys.create):
 			workspace := models.Workspace{
 				Name:        "Misc",
 				Description: sql.NullString{String: "General workspace", Valid: true},
 			}
-			return m, tea.Batch(addWorkspaceCmd(m.db, workspace))
-		case key.Matches(msg, m.listKeys.remove):
-			index := m.list.Index()
+			return m, addWorkspaceCmd(m.db, workspace)
+
+		case key.Matches(msg, m.list.Keys.remove):
+			index := m.list.index()
 			return m, deleteWorkspaceCmd(m.db, m.workspaces[index], index)
 		default:
 			return m, nil
 		}
+
 	case dbMsg:
 		m.db = msg.DB
 		m.waitingText = "fetching workspaces"
-		return m, tea.Batch(listWorkspacesCmd(m.db))
+		return m, listWorkspacesCmd(m.db)
+
 	case addWorkspaceMsg:
 		m.workspaces = append(m.workspaces, msg.Workspace)
-		cmd := m.list.InsertItem(-1, item{msg.Workspace})
-		return m, cmd
+		m.list = newList(m.workspaces, Workspace)
+		return m, nil
+
 	case deleteWorkspaceMsg:
 		m.workspaces = append(m.workspaces[:msg.index], m.workspaces[msg.index+1:]...)
-		m.list.RemoveItem(msg.index)
+		m.list = newList(m.workspaces, Workspace)
 		return m, nil
+
 	case listWorkspacesMsg:
 		m.workspaces = msg.Workspaces
-		m.list = newList(m.workspaces)
-		m.list.Title = "Workspaces"
-		m.listKeys = newListKeyMap("workspace")
-		m.list.AdditionalFullHelpKeys = func() []key.Binding {
-			return []key.Binding{
-				m.listKeys.create,
-				m.listKeys.choose,
-				m.listKeys.remove,
-				m.listKeys.toggleHelp,
-			}
-		}
-		m.state = root
+		m.list = newList(m.workspaces, Workspace)
+		m.state = showWorkspaces
 		return m, nil
 
 	case errorMsg:
@@ -120,11 +116,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
 	switch m.state {
-	case waiting:
+	case showWaiting:
 		return m.waitingView()
 	case showError:
 		return m.errorView()
 	default:
-		return m.rootView()
+		return m.list.view()
 	}
 }

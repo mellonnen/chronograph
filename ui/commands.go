@@ -41,7 +41,7 @@ func addWorkspaceCmd(db *gorm.DB, workspace models.Workspace) tea.Cmd {
 
 func deleteWorkspaceCmd(db *gorm.DB, workspace models.Workspace, index int) tea.Cmd {
 	return func() tea.Msg {
-		res := db.Delete(&workspace)
+		res := db.Unscoped().Delete(&workspace)
 		if res.RowsAffected != 1 {
 			return errorMsg(errors.New("delete ineffective"))
 		}

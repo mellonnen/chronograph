@@ -4,10 +4,6 @@ import (
 	"fmt"
 )
 
-func (m model) rootView() string {
-	return m.list.View()
-}
-
 func (m model) waitingView() string {
 	return fmt.Sprintf("\n\n%s %s", m.spinner.View(), m.waitingText)
 }

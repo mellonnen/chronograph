@@ -15,7 +15,7 @@ type Listable interface {
 
 type Workspace struct {
 	gorm.Model
-	Name        string
+	Name        string `gorm:"unique"`
 	Description sql.NullString
 
 	Repos []Repo
@@ -34,7 +34,7 @@ type Repo struct {
 	gorm.Model
 	WorkspaceID uint
 
-	Name        string
+	Name        string `gorm:"unique"`
 	Description sql.NullString
 	Remote      string
 	Path        string
@@ -54,7 +54,7 @@ func (r Repo) GetCreatedAt() string { return r.CreatedAt.Format("January 2, 2006
 type Task struct {
 	gorm.Model
 	RepoID      uint
-	Name        string
+	Name        string `gorm:"unique"`
 	Description sql.NullString
 
 	StartedAt        sql.NullTime
