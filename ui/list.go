@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -41,32 +40,6 @@ func newListKeyMap(itemType string) listKeyMap {
 	}
 }
 
-func newList(in interface{}) (list.Model, listKeyMap, error) {
-	var listKeys listKeyMap
-	var l list.Model
-	switch v := in.(type) {
-	case []models.Workspace:
-		listKeys = newListKeyMap("workspace")
-		l = list.New(itemsFromListable(v), list.NewDefaultDelegate(), 0, 0)
-		l.Title = "Workspaces"
-	case []models.Repo:
-		listKeys = newListKeyMap("repo")
-		l = list.New(itemsFromListable(v), list.NewDefaultDelegate(), 0, 0)
-		l.Title = "Repos"
-	case []models.Task:
-		listKeys = newListKeyMap("task")
-		l = list.New(itemsFromListable(v), list.NewDefaultDelegate(), 0, 0)
-		l.Title = "Tasks"
-	default:
-		return list.Model{}, listKeyMap{}, errors.New("non-listable data")
-	}
-	l.AdditionalFullHelpKeys = func() []key.Binding {
-		return []key.Binding{
-			listKeys.create,
-			listKeys.choose,
-			listKeys.remove,
-			listKeys.toggleHelp,
-		}
-	}
-	return l, listKeys, nil
+func newList[L models.Listable](listables []L) list.Model {
+	return list.New(itemsFromListable(listables), list.NewDefaultDelegate(), 0, 0)
 }

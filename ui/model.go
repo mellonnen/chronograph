@@ -82,10 +82,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case listWorkspacesMsg:
 		m.workspaces = msg.Workspaces
-		var err error
-		m.list, m.listKeys, err = newList(m.workspaces)
-		if err != nil {
-			return m, func() tea.Msg { return errorMsg(err) }
+		m.list = newList(m.workspaces)
+		m.list.Title = "Workspaces"
+		m.listKeys = newListKeyMap("workspace")
+		m.list.AdditionalFullHelpKeys = func() []key.Binding {
+			return []key.Binding{
+				m.listKeys.create,
+				m.listKeys.choose,
+				m.listKeys.remove,
+				m.listKeys.toggleHelp,
+			}
 		}
 		m.state = root
 		return m, nil
