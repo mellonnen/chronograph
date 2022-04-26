@@ -72,6 +72,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				Description: sql.NullString{String: "General workspace", Valid: true},
 			}
 			return m, tea.Batch(addWorkspaceCmd(m.db, workspace))
+		case key.Matches(msg, m.listKeys.remove):
+			index := m.list.Index()
+			return m, deleteWorkspaceCmd(m.db, m.workspaces[index], index)
 		default:
 			return m, nil
 		}
@@ -79,7 +82,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.db = msg.DB
 		m.waitingText = "fetching workspaces"
 		return m, tea.Batch(listWorkspacesCmd(m.db))
-
+	case addWorkspaceMsg:
+		m.workspaces = append(m.workspaces, msg.Workspace)
+		cmd := m.list.InsertItem(-1, item{msg.Workspace})
+		return m, cmd
+	case deleteWorkspaceMsg:
+		m.workspaces = append(m.workspaces[:msg.index], m.workspaces[msg.index+1:]...)
+		m.list.RemoveItem(msg.index)
+		return m, nil
 	case listWorkspacesMsg:
 		m.workspaces = msg.Workspaces
 		m.list = newList(m.workspaces)
