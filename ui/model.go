@@ -1,6 +1,10 @@
 package ui
 
 import (
+	"database/sql"
+
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -16,8 +20,8 @@ const (
 	inRepo
 	inTask
 
-	err
 	waiting
+	showError
 )
 
 type model struct {
@@ -25,6 +29,8 @@ type model struct {
 
 	spinner spinner.Model
 
+	list             list.Model
+	listKeys         listKeyMap
 	workspaces       []models.Workspace
 	currentWorkspace *models.Workspace
 	currentRepo      *models.Repo
@@ -39,7 +45,7 @@ type model struct {
 
 func New(dbPath string) *tea.Program {
 	s := spinner.New()
-	s.Spinner = spinner.MiniDot
+	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	m := model{spinner: s, dbPath: dbPath}
 	return tea.NewProgram(m)
@@ -54,33 +60,53 @@ func (m model) Init() tea.Cmd {
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
+		if m.list.FilterState() == list.Filtering {
+			return m, nil
+		}
+		switch {
+		case msg.String() == "q", msg.String() == "ctrl-c":
 			return m, tea.Quit
+		case key.Matches(msg, m.listKeys.create):
+			workspace := models.Workspace{
+				Name:        "Misc",
+				Description: sql.NullString{String: "General workspace", Valid: true},
+			}
+			return m, tea.Batch(addWorkspaceCmd(m.db, workspace))
+		default:
+			return m, nil
 		}
 	case dbMsg:
 		m.db = msg.DB
+		m.waitingText = "fetching workspaces"
+		return m, tea.Batch(listWorkspacesCmd(m.db))
+
+	case listWorkspacesMsg:
+		m.workspaces = msg.Workspaces
+		var err error
+		m.list, m.listKeys, err = newList(m.workspaces)
+		if err != nil {
+			return m, func() tea.Msg { return errorMsg(err) }
+		}
 		m.state = root
-		m.waitingText = ""
 		return m, nil
 
 	case errorMsg:
 		m.err = msg
-		m.state = err
+		m.state = showError
 		return m, nil
+
 	default:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 	}
-	return m, nil
 }
 
 func (m model) View() string {
 	switch m.state {
 	case waiting:
 		return m.waitingView()
-	case err:
+	case showError:
 		return m.errorView()
 	default:
 		return m.rootView()

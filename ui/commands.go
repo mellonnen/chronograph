@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -17,5 +18,23 @@ func initSqliteCmd(dbPath string) tea.Cmd {
 		}
 		db.AutoMigrate(&models.Workspace{}, &models.Repo{}, &models.Task{})
 		return dbMsg{DB: db}
+	}
+}
+
+func listWorkspacesCmd(db *gorm.DB) tea.Cmd {
+	return func() tea.Msg {
+		var workspaces []models.Workspace
+		db.Find(&workspaces)
+		return listWorkspacesMsg{Workspaces: workspaces}
+	}
+}
+
+func addWorkspaceCmd(db *gorm.DB, workspace models.Workspace) tea.Cmd {
+	return func() tea.Msg {
+		res := db.Create(&workspace)
+		if res.RowsAffected != 1 {
+			return errorMsg(errors.New("create ineffective"))
+		}
+		return addWorkspaceMsg{Workspace: workspace}
 	}
 }

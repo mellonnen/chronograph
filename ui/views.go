@@ -5,11 +5,11 @@ import (
 )
 
 func (m model) rootView() string {
-	return "Initialized database !"
+	return m.list.View()
 }
 
 func (m model) waitingView() string {
-	return fmt.Sprintf("%s %s", m.spinner.View(), m.waitingText)
+	return fmt.Sprintf("\n\n%s %s", m.spinner.View(), m.waitingText)
 }
 
 func (m model) errorView() string {
