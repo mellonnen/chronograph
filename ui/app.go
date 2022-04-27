@@ -3,12 +3,13 @@ package ui
 import (
 	"errors"
 
-	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/mellonnen/chronograph/models"
 	"gorm.io/gorm"
 )
+
+var appStyle = lipgloss.NewStyle().Padding(1, 2)
 
 type state int
 
@@ -19,9 +20,9 @@ const (
 	showTasks
 	showTaskInfo
 
-	addWorkspace
-	addRepo
-	addTask
+	showCreateWorkspace
+	showCreateRepo
+	showCreateTask
 
 	showWaiting
 	showError
@@ -30,8 +31,8 @@ const (
 type model struct {
 	state state
 
-	spinner spinner.Model
-	list    listModel
+	list listModel
+	form formModel
 
 	workspaces       []models.Workspace
 	currentWorkspace *models.Workspace
@@ -41,27 +42,30 @@ type model struct {
 	dbPath string
 	db     *gorm.DB
 
+	height int
+	width  int
+
 	err         error
 	waitingText string
 }
 
 func New(dbPath string) *tea.Program {
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	m := model{spinner: s, dbPath: dbPath}
+	m := model{dbPath: dbPath}
 	return tea.NewProgram(m, tea.WithAltScreen())
 }
 
 func (m model) Init() tea.Cmd {
-	m.state = showWaiting
-	m.waitingText = "initializing the database..."
-	return tea.Batch(m.spinner.Tick, initSqliteCmd(m.dbPath))
+	return tea.Batch(initSqliteCmd(m.dbPath))
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := make([]tea.Cmd, 0)
 	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		m.height = msg.Height
+		m.width = msg.Width
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
@@ -73,12 +77,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.waitingText = "fetching workspaces"
 		cmds = append(cmds, listWorkspacesCmd(m.db))
 
+	case createResourceMsg:
+		switch m.state {
+		case showWorkspaces:
+			m.state = showCreateWorkspace
+			m.form = newForm(Workspace)
+			cmds = append(cmds, m.form.init())
+		}
+
 	case addWorkspaceMsg:
+		// add workspace to database.
 		res := m.db.Create(&msg.Workspace)
 		if res.RowsAffected != 1 {
 			return m, errorCmd(errors.New("create ineffective"))
 		}
 		m.workspaces = append(m.workspaces, msg.Workspace)
+		cmds = append(cmds, addResourceCmd(msg.Workspace))
+		m.state = showWorkspaces
 
 	case removeResourceMsg:
 		switch m.state {
@@ -92,7 +107,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case listWorkspacesMsg:
 		m.workspaces = msg.Workspaces
-		m.list = newList(m.workspaces, Workspace)
+		m.list = newList(m.workspaces, Workspace, m.height, m.width)
 		m.state = showWorkspaces
 
 	case errorMsg:
@@ -105,17 +120,23 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newList, cmd := m.list.update(msg)
 		m.list = newList
 		cmds = append(cmds, cmd)
+	case showCreateWorkspace, showCreateRepo, showCreateTask:
+		newForm, cmd := m.form.update(msg)
+		m.form = newForm
+		cmds = append(cmds, cmd)
 	}
 	return m, tea.Batch(cmds...)
 }
 
 func (m model) View() string {
 	switch m.state {
-	case showWaiting:
-		return m.waitingView()
 	case showError:
 		return m.errorView()
+	case showWorkspaces, showRepos, showTasks:
+		return appStyle.Render(m.list.view())
+	case showCreateWorkspace, showCreateRepo, showCreateTask:
+		return appStyle.Render(m.form.view())
 	default:
-		return m.list.view()
+		return ""
 	}
 }

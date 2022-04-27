@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"errors"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -34,19 +33,23 @@ func addWorkspaceCmd(workspace models.Workspace) tea.Cmd {
 	}
 }
 
-func removeResourceCmd(index int) tea.Cmd {
+func createResourceCmd() tea.Cmd {
 	return func() tea.Msg {
-		return removeResourceMsg{index: index}
+		return createResourceMsg{}
 	}
 }
 
-func removeWorkspaceFromDBCmd(db *gorm.DB, workspace models.Workspace, index int) tea.Cmd {
+func addResourceCmd(resource models.Listable) tea.Cmd {
 	return func() tea.Msg {
-		res := db.Unscoped().Delete(&workspace)
-		if res.RowsAffected != 1 {
-			return errorMsg(errors.New("delete ineffective"))
+		return addResourceMsg{
+			Resource: resource,
 		}
-		return removedResourceMsg{index: index}
+	}
+}
+
+func removeResourceCmd(index int) tea.Cmd {
+	return func() tea.Msg {
+		return removeResourceMsg{index: index}
 	}
 }
 

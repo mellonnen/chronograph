@@ -19,8 +19,9 @@ type addWorkspaceMsg struct {
 	Workspace models.Workspace
 }
 
-type removedResourceMsg struct {
-	index int
+type createResourceMsg struct{}
+type addResourceMsg struct {
+	Resource models.Listable
 }
 
 type removeResourceMsg struct {

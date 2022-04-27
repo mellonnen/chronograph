@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"database/sql"
 	"fmt"
 	"strings"
 
@@ -30,10 +29,11 @@ type listModel struct {
 }
 
 // newList specifies a new list model for the provided listables and resource type.
-func newList[L models.Listable](listables []L, resourceType Resource) listModel {
+func newList[L models.Listable](listables []L, resourceType Resource, height, width int) listModel {
 	delegateKeys := newDelegateKeyMap(resourceType)
+	x, y := appStyle.GetFrameSize()
 	m := listModel{
-		list:         list.New(itemsFromListable(listables), newDelegate(delegateKeys), 0, 0),
+		list:         list.New(itemsFromListable(listables), newDelegate(delegateKeys), width-x, height-y),
 		keys:         newListKeyMap(resourceType),
 		delegateKeys: delegateKeys,
 		itemType:     resourceType,
@@ -56,6 +56,7 @@ func newDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 
 	d.UpdateFunc = func(msg tea.Msg, m *list.Model) tea.Cmd {
 		switch msg := msg.(type) {
+
 		case tea.KeyMsg:
 			switch {
 			// Removal of resources works by having the delegate detect
@@ -121,27 +122,26 @@ func newDelegateKeyMap(resourceType Resource) *delegateKeyMap {
 func (m listModel) update(msg tea.Msg) (listModel, tea.Cmd) {
 	cmds := make([]tea.Cmd, 0)
 	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		x, y := appStyle.GetFrameSize()
+		m.list.SetSize(msg.Width-x, msg.Height-y)
+
 	case tea.KeyMsg:
 		if m.list.FilterState() == list.Filtering {
 			break
 		}
 		switch {
 		case key.Matches(msg, m.keys.create):
-			m.delegateKeys.remove.SetEnabled(true)
-			workspace := models.Workspace{
-				Name:        "Misc",
-				Description: sql.NullString{String: "General workspace", Valid: true},
-			}
-
-			cmds = append(cmds, addWorkspaceCmd(workspace))
+			cmds = append(cmds, createResourceCmd())
 
 		case key.Matches(msg, m.keys.toggleHelp):
 			m.list.SetShowHelp(!m.list.ShowHelp())
 		}
 
-	case addWorkspaceMsg:
+	case addResourceMsg:
 		m.delegateKeys.remove.SetEnabled(true)
-		cmds = append(cmds, m.list.InsertItem(-1, item{msg.Workspace}))
+		cmds = append(cmds, m.list.InsertItem(-1, item{msg.Resource}))
 	}
 
 	newList, cmd := m.list.Update(msg)
