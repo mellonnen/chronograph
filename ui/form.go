@@ -3,12 +3,14 @@ package ui
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/mellonnen/chronograph/git"
 	"github.com/mellonnen/chronograph/models"
 )
 
@@ -30,8 +32,9 @@ type formModel struct {
 	inputs     []textinput.Model
 	cursorMode textinput.CursorMode
 
-	Keys  formKeyMap
-	title string
+	keys     formKeyMap
+	resource Resource
+	title    string
 }
 
 type formKeyMap struct {
@@ -48,7 +51,8 @@ func newFormKeyMap() formKeyMap {
 
 func newForm(r Resource) formModel {
 	m := formModel{}
-	m.Keys = newFormKeyMap()
+	m.resource = r
+	m.keys = newFormKeyMap()
 	m.title = strings.Title(fmt.Sprintf("create new %s", r))
 	m.inputs = make([]textinput.Model, 0)
 	m.inputs = append(m.inputs, createTextInput("Name"))
@@ -56,6 +60,16 @@ func newForm(r Resource) formModel {
 	m.inputs[0].Focus()
 	m.inputs[0].PromptStyle = focusedStyle
 	m.inputs[0].TextStyle = focusedStyle
+
+	switch r {
+	case Repo:
+		pathInput := createTextInput("Path to Repo")
+		cwd, _ := os.Getwd()
+		path, _ := git.RepoPathFromPath(cwd)
+		pathInput.SetValue(path)
+		m.inputs = append(m.inputs, pathInput)
+
+	}
 	return m
 }
 
@@ -68,17 +82,34 @@ func (m formModel) update(msg tea.Msg) (formModel, tea.Cmd) {
 	case tea.KeyMsg:
 		switch {
 
-		case key.Matches(msg, m.Keys.prev), key.Matches(msg, m.Keys.next):
+		case key.Matches(msg, m.keys.prev), key.Matches(msg, m.keys.next):
 			if msg.String() == "enter" && m.focusIndex == len(m.inputs) {
-				workspace := models.Workspace{
-					Name:        m.inputs[0].Value(),
-					Description: sql.NullString{String: m.inputs[1].Value(), Valid: true},
-				}
 
-				return m, addWorkspaceCmd(workspace)
+				switch m.resource {
+				case Workspace:
+					workspace := models.Workspace{
+						Name:        m.inputs[0].Value(),
+						Description: sql.NullString{String: m.inputs[1].Value(), Valid: true},
+					}
+
+					return m, addWorkspaceCmd(workspace)
+				case Repo:
+					path := m.inputs[2].Value()
+					remote, err := git.RemoteFromPath(path)
+					if err != nil {
+						return m, errorCmd(fmt.Errorf("getting remote: %v", err))
+					}
+					repo := models.Repo{
+						Name:        m.inputs[0].Value(),
+						Description: sql.NullString{String: m.inputs[1].Value(), Valid: true},
+						Path:        path,
+						Remote:      remote,
+					}
+					return m, addRepoCmd(repo)
+				}
 			}
 
-			if key.Matches(msg, m.Keys.prev) {
+			if key.Matches(msg, m.keys.prev) {
 				m.focusIndex--
 			} else {
 				m.focusIndex++
@@ -144,6 +175,5 @@ func createTextInput(placeholder string) textinput.Model {
 	t := textinput.New()
 	t.Placeholder = placeholder
 	t.CursorStyle = cursorStyle
-	t.CharLimit = 32
 	return t
 }

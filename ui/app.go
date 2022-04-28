@@ -82,9 +82,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case showWorkspaces:
 			m.state = showCreateWorkspace
 			m.form = newForm(Workspace)
-			cmds = append(cmds, m.form.init())
+		case showRepos:
+			m.state = showCreateRepo
+			m.form = newForm(Repo)
 		}
+		cmds = append(cmds, m.form.init())
 
+	case removeResourceMsg:
+		switch m.state {
+		case showWorkspaces:
+			res := m.db.Unscoped().Delete(&m.workspaces[msg.index])
+			if res.RowsAffected != 1 {
+				return m, errorCmd(errors.New("remove ineffective"))
+			}
+			m.workspaces = append(m.workspaces[:msg.index], m.workspaces[msg.index+1:]...)
+		}
 	case addWorkspaceMsg:
 		// add workspace to database.
 		res := m.db.Create(&msg.Workspace)
@@ -95,14 +107,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, addResourceCmd(msg.Workspace))
 		m.state = showWorkspaces
 
-	case removeResourceMsg:
+	case addRepoMsg:
+		err := m.db.Model(m.currentWorkspace).Association("Repos").Append(&msg.Repo)
+		if err == nil {
+			return m, errorCmd(err)
+		}
+		m.db.Preload("Repos").Find(m.currentWorkspace)
+		cmds = append(cmds, addResourceCmd(msg.Repo))
+		m.state = showRepos
+
+	case chooseResourceMsg:
 		switch m.state {
 		case showWorkspaces:
-			res := m.db.Unscoped().Delete(&m.workspaces[msg.index])
-			if res.RowsAffected != 1 {
-				return m, errorCmd(errors.New("remove ineffective"))
-			}
-			m.workspaces = append(m.workspaces[:msg.index], m.workspaces[msg.index+1:]...)
+			m.currentWorkspace = &m.workspaces[msg.index]
+			m.db.Preload("Repos").Find(m.currentWorkspace)
+			m.list = newList(m.currentWorkspace.Repos, Repo, m.height, m.width)
+			m.state = showRepos
 		}
 
 	case listWorkspacesMsg:

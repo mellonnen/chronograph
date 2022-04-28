@@ -67,6 +67,9 @@ func newDelegate(keys *delegateKeyMap) list.DefaultDelegate {
 			// Detect removal of items.
 			case key.Matches(msg, keys.remove):
 				return removeResourceCmd(m.Index())
+
+			case key.Matches(msg, keys.choose):
+				return chooseResourceCmd(m.Index())
 			}
 
 			// The message has propagated back -> we can delete the item.

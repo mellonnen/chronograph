@@ -32,7 +32,11 @@ func addWorkspaceCmd(workspace models.Workspace) tea.Cmd {
 		return addWorkspaceMsg{Workspace: workspace}
 	}
 }
-
+func addRepoCmd(repo models.Repo) tea.Cmd {
+	return func() tea.Msg {
+		return addRepoMsg{Repo: repo}
+	}
+}
 func createResourceCmd() tea.Cmd {
 	return func() tea.Msg {
 		return createResourceMsg{}
@@ -50,6 +54,12 @@ func addResourceCmd(resource models.Listable) tea.Cmd {
 func removeResourceCmd(index int) tea.Cmd {
 	return func() tea.Msg {
 		return removeResourceMsg{index: index}
+	}
+}
+
+func chooseResourceCmd(index int) tea.Cmd {
+	return func() tea.Msg {
+		return chooseResourceMsg{index: index}
 	}
 }
 
