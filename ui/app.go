@@ -19,7 +19,7 @@ const (
 	showWorkspaces
 	showRepos
 	showTasks
-	showTaskInfo
+	showTaskOverview
 
 	showCreateWorkspace
 	showCreateRepo
@@ -32,8 +32,9 @@ const (
 type model struct {
 	state state
 
-	list listModel
-	form formModel
+	list    listModel
+	form    formModel
+	overiew overviewModel
 
 	workspaces       []models.Workspace
 	currentWorkspace *models.Workspace
@@ -90,6 +91,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.db.Preload("Tasks").Find(m.currentRepo)
 			m.list = newList(m.currentRepo.Tasks, Task, m.height, m.width)
 			m.state = showTasks
+		case showTasks:
+			m.currentTask = &m.currentRepo.Tasks[msg.index]
+			m.overiew = newOverwiew(*m.currentTask)
+			m.state = showTaskOverview
 		}
 
 	case createResourceMsg:
@@ -181,6 +186,8 @@ func (m model) View() string {
 		return appStyle.Render(m.list.view())
 	case showCreateWorkspace, showCreateRepo, showCreateTask:
 		return appStyle.Render(m.form.view())
+	case showTaskOverview:
+		return appStyle.Render(m.overiew.view())
 	default:
 		return ""
 	}
