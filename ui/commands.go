@@ -37,6 +37,13 @@ func addRepoCmd(repo models.Repo) tea.Cmd {
 		return addRepoMsg{Repo: repo}
 	}
 }
+
+func addTaskCmd(task models.Task) tea.Cmd {
+	return func() tea.Msg {
+		return addTaskMsg{Task: task}
+	}
+}
+
 func createResourceCmd() tea.Cmd {
 	return func() tea.Msg {
 		return createResourceMsg{}

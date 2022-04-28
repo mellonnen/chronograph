@@ -23,6 +23,10 @@ type addRepoMsg struct {
 	Repo models.Repo
 }
 
+type addTaskMsg struct {
+	Task models.Task
+}
+
 type createResourceMsg struct{}
 type addResourceMsg struct {
 	Resource models.Listable

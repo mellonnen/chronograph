@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -120,6 +121,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.currentWorkspace.Repos = append(m.currentWorkspace.Repos[:msg.index], m.currentWorkspace.Repos[msg.index+1:]...)
 		}
+
 	case addWorkspaceMsg:
 		// add workspace to database.
 		res := m.db.Create(&msg.Workspace)
@@ -132,12 +134,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case addRepoMsg:
 		err := m.db.Model(m.currentWorkspace).Association("Repos").Append(&msg.Repo)
-		if err == nil {
-			return m, errorCmd(err)
+		if err != nil {
+			return m, errorCmd(fmt.Errorf("adding repo to workspace: %v", err))
 		}
 		m.db.Preload("Repos").Find(m.currentWorkspace)
 		cmds = append(cmds, addResourceCmd(msg.Repo))
 		m.state = showRepos
+
+	case addTaskMsg:
+		err := m.db.Model(m.currentRepo).Association("Tasks").Append(&msg.Task)
+		if err != nil {
+			return m, errorCmd(fmt.Errorf("adding task to repo: %v", err))
+		}
+		m.db.Preload("Tasks").Find(m.currentRepo)
+		cmds = append(cmds, addResourceCmd(msg.Task))
+		m.state = showTasks
 
 	case listWorkspacesMsg:
 		m.workspaces = msg.Workspaces

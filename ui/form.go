@@ -105,13 +105,14 @@ func (m formModel) update(msg tea.Msg) (formModel, tea.Cmd) {
 				if !valid {
 					break
 				}
+				name := m.inputs[0].Input.Value()
+				desc := m.inputs[1].Input.Value()
 				switch m.resource {
 				case Workspace:
 					workspace := models.Workspace{
-						Name:        m.inputs[0].Input.Value(),
-						Description: sql.NullString{String: m.inputs[1].Input.Value(), Valid: true},
+						Name:        name,
+						Description: sql.NullString{String: desc, Valid: len(desc) > 0},
 					}
-
 					return m, addWorkspaceCmd(workspace)
 				case Repo:
 					path := m.inputs[2].Input.Value()
@@ -120,12 +121,21 @@ func (m formModel) update(msg tea.Msg) (formModel, tea.Cmd) {
 						return m, errorCmd(fmt.Errorf("getting remote: %v", err))
 					}
 					repo := models.Repo{
-						Name:        m.inputs[0].Input.Value(),
-						Description: sql.NullString{String: m.inputs[1].Input.Value(), Valid: true},
+						Name:        name,
+						Description: sql.NullString{String: desc, Valid: len(desc) > 0},
 						Path:        path,
 						Remote:      remote,
 					}
 					return m, addRepoCmd(repo)
+				case Task:
+					// we can skip error handling here as we have validated thi input.
+					d, _ := time.ParseDuration(m.inputs[2].Input.Value())
+					task := models.Task{
+						Name:             name,
+						Description:      sql.NullString{String: desc, Valid: len(desc) > 0},
+						ExpectedDuration: d,
+					}
+					return m, addTaskCmd(task)
 				}
 			}
 
