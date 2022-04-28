@@ -96,6 +96,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, errorCmd(errors.New("remove ineffective"))
 			}
 			m.workspaces = append(m.workspaces[:msg.index], m.workspaces[msg.index+1:]...)
+		case showRepos:
+			res := m.db.Unscoped().Delete(&m.currentWorkspace.Repos[msg.index])
+			if res.RowsAffected != 1 {
+				return m, errorCmd(errors.New("remove ineffective"))
+			}
+			m.currentWorkspace.Repos = append(m.currentWorkspace.Repos[:msg.index], m.currentWorkspace.Repos[msg.index+1:]...)
 		}
 	case addWorkspaceMsg:
 		// add workspace to database.
