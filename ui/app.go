@@ -77,6 +77,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.waitingText = "fetching workspaces"
 		cmds = append(cmds, listWorkspacesCmd(m.db))
 
+	case chooseResourceMsg:
+		switch m.state {
+		case showWorkspaces:
+			m.currentWorkspace = &m.workspaces[msg.index]
+			m.db.Preload("Repos").Find(m.currentWorkspace)
+			m.list = newList(m.currentWorkspace.Repos, Repo, m.height, m.width)
+			m.state = showRepos
+		case showRepos:
+			m.currentRepo = &m.currentWorkspace.Repos[msg.index]
+			m.db.Preload("Tasks").Find(m.currentRepo)
+			m.list = newList(m.currentRepo.Tasks, Task, m.height, m.width)
+			m.state = showTasks
+		}
+
 	case createResourceMsg:
 		switch m.state {
 		case showWorkspaces:
@@ -85,6 +99,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case showRepos:
 			m.state = showCreateRepo
 			m.form = newForm(Repo)
+		case showTasks:
+			m.state = showCreateTask
+			m.form = newForm(Task)
 		}
 		cmds = append(cmds, m.form.init())
 
@@ -121,15 +138,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.db.Preload("Repos").Find(m.currentWorkspace)
 		cmds = append(cmds, addResourceCmd(msg.Repo))
 		m.state = showRepos
-
-	case chooseResourceMsg:
-		switch m.state {
-		case showWorkspaces:
-			m.currentWorkspace = &m.workspaces[msg.index]
-			m.db.Preload("Repos").Find(m.currentWorkspace)
-			m.list = newList(m.currentWorkspace.Repos, Repo, m.height, m.width)
-			m.state = showRepos
-		}
 
 	case listWorkspacesMsg:
 		m.workspaces = msg.Workspaces
